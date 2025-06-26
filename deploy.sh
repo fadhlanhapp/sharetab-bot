@@ -26,7 +26,7 @@ fi
 # Install PM2 globally if not installed
 if ! command -v pm2 &> /dev/null; then
     echo "📦 Installing PM2..."
-    npm install -g pm2
+    sudo npm install -g pm2
 fi
 
 # Stop existing process
