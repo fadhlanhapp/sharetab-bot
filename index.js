@@ -286,7 +286,7 @@ async function handleEqualSplit(chatId, session) {
       let resultText = '💰 Equal Split Result:\n\n';
       
       Object.entries(response.data.perPersonCharges).forEach(([participant, amount]) => {
-        resultText += `👤 **${participant}**\n`;
+        resultText += `👤 *${participant}*\n`;
         resultText += `   📦 Items: Shared Bill\n`;
         
         // Show breakdown if available
@@ -298,12 +298,12 @@ async function handleEqualSplit(chatId, session) {
           if (breakdown.discount > 0) resultText += `   🎫 Discount: -Rp ${breakdown.discount.toLocaleString()}\n`;
         }
         
-        resultText += `   🎯 **Total: Rp ${amount.toLocaleString()}**\n\n`;
+        resultText += `   🎯 *Total: Rp ${amount.toLocaleString()}*\n\n`;
       });
       
-      resultText += `💸 **Grand Total: Rp ${response.data.amount.toLocaleString()}**`;
+      resultText += `💸 *Grand Total: Rp ${response.data.amount.toLocaleString()}*`;
       
-      bot.sendMessage(chatId, resultText);
+      bot.sendMessage(chatId, resultText, { parse_mode: 'Markdown' });
       userSessions.delete(chatId);
     } else {
       throw new Error('Invalid response from backend');
@@ -449,7 +449,7 @@ async function calculateItemizedSplit(chatId, session) {
       let resultText = '📋 Itemized Split Result:\n\n';
       
       Object.entries(response.data.perPersonCharges).forEach(([participant, amount]) => {
-        resultText += `👤 **${participant}**\n`;
+        resultText += `👤 *${participant}*\n`;
         
         // Show items this person ordered
         const personItems = [];
@@ -481,12 +481,12 @@ async function calculateItemizedSplit(chatId, session) {
           if (breakdown.discount > 0) resultText += `   🎫 Discount: -Rp ${breakdown.discount.toLocaleString()}\n`;
         }
         
-        resultText += `   🎯 **Total: Rp ${amount.toLocaleString()}**\n\n`;
+        resultText += `   🎯 *Total: Rp ${amount.toLocaleString()}*\n\n`;
       });
       
-      resultText += `💸 **Grand Total: Rp ${response.data.amount.toLocaleString()}**`;
+      resultText += `💸 *Grand Total: Rp ${response.data.amount.toLocaleString()}*`;
       
-      bot.sendMessage(chatId, resultText);
+      bot.sendMessage(chatId, resultText, { parse_mode: 'Markdown' });
       userSessions.delete(chatId);
     } else {
       throw new Error('Invalid response from backend');
