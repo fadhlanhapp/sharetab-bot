@@ -46,7 +46,7 @@ chmod +x deploy.sh
 
 1. **Create .env file:**
    ```bash
-   cd /opt/sharetab-bot
+   cd /home/techops/sharetab-bot
    nano .env
    ```
    
@@ -65,7 +65,7 @@ chmod +x deploy.sh
 
 1. **Start bot:**
    ```bash
-   cd /opt/sharetab-bot
+   cd /home/techops/sharetab-bot
    pm2 start ecosystem.config.js
    pm2 save
    pm2 startup  # Enable auto-start on boot
@@ -96,7 +96,7 @@ After=network.target
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/opt/sharetab-bot
+WorkingDirectory=/home/techops/sharetab-bot
 ExecStart=/usr/bin/node index.js
 Restart=always
 RestartSec=10
@@ -134,13 +134,13 @@ sudo systemctl status sharetab-bot
 
 **Quick update:**
 ```bash
-cd /opt/sharetab-bot
+cd /home/techops/sharetab-bot
 ./update.sh
 ```
 
 **Or manually:**
 ```bash
-cd /opt/sharetab-bot
+cd /home/techops/sharetab-bot
 pm2 stop sharetab-bot
 git pull origin main
 npm install --production

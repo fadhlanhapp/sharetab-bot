@@ -4,7 +4,7 @@
 # Run this script to update the bot to latest version
 
 APP_NAME="sharetab-bot"
-APP_PATH="/opt/$APP_NAME"
+APP_PATH="/home/techops/sharetab-bot"
 
 echo "🔄 Updating ShareTab Bot..."
 
@@ -29,14 +29,11 @@ pm2 stop $APP_NAME 2>/dev/null || true
 
 # Pull latest changes
 echo "📥 Pulling latest changes..."
-sudo git pull origin main
+git pull origin main
 
 # Install/update dependencies
 echo "📦 Installing dependencies..."
-sudo npm install --production
-
-# Set proper permissions
-sudo chown -R $USER:$USER $APP_PATH
+npm install --production
 
 # Start the bot
 echo "🚀 Starting bot..."

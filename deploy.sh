@@ -5,7 +5,7 @@
 
 REPO_URL="https://github.com/fadhlanhapp/sharetab-bot"
 APP_NAME="sharetab-bot"
-APP_PATH="/opt/$APP_NAME"
+APP_PATH="/home/techops/sharetab-bot"
 
 echo "🚀 Deploying ShareTab Bot from GitHub"
 
@@ -26,7 +26,7 @@ fi
 # Install PM2 globally if not installed
 if ! command -v pm2 &> /dev/null; then
     echo "📦 Installing PM2..."
-    sudo npm install -g pm2
+    npm install -g pm2
 fi
 
 # Stop existing process
@@ -35,24 +35,21 @@ pm2 stop $APP_NAME 2>/dev/null || true
 pm2 delete $APP_NAME 2>/dev/null || true
 
 # Create app directory
-sudo mkdir -p $APP_PATH
+mkdir -p $APP_PATH
 cd $APP_PATH
 
 # Clone or pull latest code
 if [ -d ".git" ]; then
     echo "🔄 Updating existing repository..."
-    sudo git pull origin main
+    git pull origin main
 else
     echo "📥 Cloning repository..."
-    sudo git clone $REPO_URL .
+    git clone $REPO_URL .
 fi
 
 # Install dependencies
 echo "📦 Installing dependencies..."
-sudo npm install --production
-
-# Set permissions
-sudo chown -R $USER:$USER $APP_PATH
+npm install --production
 
 # Check if .env exists
 if [ ! -f ".env" ]; then
