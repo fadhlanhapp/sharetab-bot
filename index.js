@@ -151,7 +151,8 @@ async function handlePhotoUpload(chatId, msg, session) {
       
       itemsText += '📋 Items:\n';
       ocrResponse.data.items.forEach((item, index) => {
-        itemsText += `${index + 1}. ${item.name} - Rp ${item.price.toLocaleString()}\n`;
+        const quantity = item.quantity && item.quantity > 1 ? ` (${item.quantity}x)` : '';
+        itemsText += `${index + 1}. ${item.name}${quantity} - Rp ${item.price.toLocaleString()}\n`;
       });
       
       itemsText += '\n💰 Summary:\n';
@@ -345,7 +346,8 @@ async function showItemAssignment(chatId, session) {
     ...actionButtons
   ]);
 
-  let messageText = `Who ordered: ${currentItem.name} (Rp ${currentItem.price.toLocaleString()})\n\n`;
+  const quantity = currentItem.quantity && currentItem.quantity > 1 ? ` (${currentItem.quantity}x)` : '';
+  let messageText = `Who ordered: ${currentItem.name}${quantity} (Rp ${currentItem.price.toLocaleString()})\n\n`;
   if (currentAssignees.length > 0) {
     messageText += `Selected: ${currentAssignees.join(', ')}\n`;
     messageText += `Each pays: Rp ${(currentItem.price / currentAssignees.length).toLocaleString()}\n\n`;
