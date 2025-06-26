@@ -112,7 +112,14 @@ async function handlePhotoUpload(chatId, msg, session) {
     const response = await axios.get(fileUrl, { responseType: 'stream' });
     
     const formData = new FormData();
-    formData.append('receipt', response.data, 'receipt.jpg');
+    // Determine file extension from Telegram file path or default to jpg
+    const fileExtension = file.file_path.split('.').pop() || 'jpg';
+    const filename = `receipt.${fileExtension}`;
+    
+    formData.append('receipt', response.data, {
+      filename: filename,
+      contentType: `image/${fileExtension === 'jpg' ? 'jpeg' : fileExtension}`
+    });
     
     const ocrResponse = await axios.post(`${backendUrl}/api/v1/receipts/process`, formData, {
       headers: {
