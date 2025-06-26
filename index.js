@@ -114,7 +114,7 @@ async function handlePhotoUpload(chatId, msg, session) {
     const formData = new FormData();
     formData.append('receipt', response.data, 'receipt.jpg');
     
-    const ocrResponse = await axios.post(`${backendUrl}/receipts/process`, formData, {
+    const ocrResponse = await axios.post(`${backendUrl}/api/v1/receipts/process`, formData, {
       headers: {
         ...formData.getHeaders(),
       },
@@ -225,7 +225,7 @@ async function handleEqualSplit(chatId, session) {
       splitType: 'equal'
     };
 
-    const response = await axios.post(`${backendUrl}/expenses/calculateSingleBill`, payload);
+    const response = await axios.post(`${backendUrl}/api/v1/expenses/calculateSingleBill`, payload);
     
     if (response.data && response.data.splits) {
       let resultText = '💰 Equal Split Result:\n\n';
@@ -315,7 +315,7 @@ async function calculateItemizedSplit(chatId, session) {
       splitType: 'itemized'
     };
 
-    const response = await axios.post(`${backendUrl}/expenses/calculateSingleBill`, payload);
+    const response = await axios.post(`${backendUrl}/api/v1/expenses/calculateSingleBill`, payload);
     
     if (response.data && response.data.splits) {
       let resultText = '📋 Itemized Split Result:\n\n';
