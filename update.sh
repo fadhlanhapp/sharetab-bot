@@ -29,7 +29,7 @@ pm2 stop $APP_NAME 2>/dev/null || true
 
 # Pull latest changes
 echo "📥 Pulling latest changes..."
-git pull origin main
+git pull origin master
 
 # Install/update dependencies
 echo "📦 Installing dependencies..."

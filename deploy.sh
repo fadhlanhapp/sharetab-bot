@@ -41,7 +41,7 @@ cd $APP_PATH
 # Clone or pull latest code
 if [ -d ".git" ]; then
     echo "🔄 Updating existing repository..."
-    git pull origin main
+    git pull origin master
 else
     echo "📥 Cloning repository..."
     git clone $REPO_URL .
