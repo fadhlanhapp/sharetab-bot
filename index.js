@@ -54,7 +54,7 @@ bot.on('callback_query', async (callbackQuery) => {
       if (data === 'manual') {
         session.step = 'manual_amount';
         userSessions.set(chatId, session);
-        bot.sendMessage(chatId, 'Please enter the total amount (e.g., 50.25):');
+        bot.sendMessage(chatId, 'Please enter the total amount (e.g., 50000):');
       } else if (data === 'photo') {
         session.step = 'photo_upload';
         userSessions.set(chatId, session);
@@ -74,14 +74,14 @@ bot.on('callback_query', async (callbackQuery) => {
       if (data === 'confirm') {
         await askForParticipants(chatId, session);
       } else if (data === 'edit') {
-        bot.sendMessage(chatId, 'Please manually enter the items in format:\nItem1 - $10.00\nItem2 - $15.50\n...');
+        bot.sendMessage(chatId, 'Please manually enter the items in format:\nItem1 - Rp 10000\nItem2 - Rp 15500\n...');
         session.step = 'manual_items';
         userSessions.set(chatId, session);
       }
       break;
 
     default:
-      if (data.startsWith('assign_')) {
+      if (data.startsWith('toggle_') || ['select_all', 'clear_all', 'next_item', 'skip_item'].includes(data)) {
         await handleItemAssignment(chatId, data, session);
       }
   }
@@ -132,7 +132,13 @@ async function handlePhotoUpload(chatId, msg, session) {
     });
 
     if (ocrResponse.data && ocrResponse.data.items) {
-      session.data.items = ocrResponse.data.items;
+      // Ensure items have all required fields
+      session.data.items = ocrResponse.data.items.map(item => ({
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity || 1,
+        discount: item.discount || 0
+      }));
       session.data.total = ocrResponse.data.total || ocrResponse.data.items.reduce((sum, item) => sum + parseFloat(item.price), 0);
       session.data.subtotal = ocrResponse.data.subtotal || 0;
       session.data.tax = ocrResponse.data.tax || 0;
@@ -168,13 +174,14 @@ async function handlePhotoUpload(chatId, msg, session) {
       bot.sendMessage(chatId, 'Could not process receipt. Please try manual entry.');
       session.step = 'manual_amount';
       userSessions.set(chatId, session);
-      bot.sendMessage(chatId, 'Please enter the total amount:');
+      bot.sendMessage(chatId, 'Please enter the total amount (e.g., 50000):');
     }
   } catch (error) {
     console.error('OCR Error:', error);
     bot.sendMessage(chatId, 'Error processing receipt. Please try manual entry.');
     session.step = 'manual_amount';
     userSessions.set(chatId, session);
+    bot.sendMessage(chatId, 'Please enter the total amount (e.g., 50000):');
   }
 }
 
@@ -183,10 +190,14 @@ async function handleTextInput(chatId, text, session) {
     case 'manual_amount':
       const amount = parseFloat(text);
       if (isNaN(amount) || amount <= 0) {
-        bot.sendMessage(chatId, 'Please enter a valid amount (e.g., 50.25):');
+        bot.sendMessage(chatId, 'Please enter a valid amount (e.g., 50000):');
         return;
       }
       session.data.total = amount;
+      session.data.subtotal = amount;
+      session.data.tax = 0;
+      session.data.service = 0;
+      session.data.discount = 0;
       await askForParticipants(chatId, session);
       break;
 
@@ -203,23 +214,32 @@ async function handleTextInput(chatId, text, session) {
     case 'manual_items':
       try {
         const items = text.split('\n').map(line => {
-          const match = line.match(/(.+?)\s*-\s*\$?(\d+\.?\d*)/);
+          const match = line.match(/(.+?)\s*-\s*Rp?\s*(\d+\.?\d*)/);
           if (match) {
-            return { name: match[1].trim(), price: parseFloat(match[2]) };
+            return { 
+              name: match[1].trim(), 
+              price: parseFloat(match[2]),
+              quantity: 1,
+              discount: 0
+            };
           }
           return null;
         }).filter(item => item);
 
         if (items.length === 0) {
-          bot.sendMessage(chatId, 'Please enter items in correct format:\nItem1 - $10.00\nItem2 - $15.50');
+          bot.sendMessage(chatId, 'Please enter items in correct format:\nItem1 - Rp 10000\nItem2 - Rp 15500');
           return;
         }
 
         session.data.items = items;
         session.data.total = items.reduce((sum, item) => sum + item.price, 0);
+        session.data.subtotal = session.data.total;
+        session.data.tax = 0;
+        session.data.service = 0;
+        session.data.discount = 0;
         await askForParticipants(chatId, session);
       } catch (error) {
-        bot.sendMessage(chatId, 'Please enter items in correct format:\nItem1 - $10.00\nItem2 - $15.50');
+        bot.sendMessage(chatId, 'Please enter items in correct format:\nItem1 - Rp 10000\nItem2 - Rp 15500');
       }
       break;
   }
@@ -244,20 +264,29 @@ async function askForSplitMethod(chatId, session) {
 
 async function handleEqualSplit(chatId, session) {
   try {
+    // For equal split, create a single item with all participants
     const payload = {
-      total: session.data.total,
-      participants: session.data.participants,
-      splitType: 'equal'
+      items: [{
+        description: "Shared Bill",
+        unitPrice: session.data.subtotal || session.data.total,
+        quantity: 1,
+        itemDiscount: 0,
+        paidBy: session.data.participants[0], // First participant pays
+        consumers: session.data.participants
+      }],
+      tax: session.data.tax || 0,
+      serviceCharge: session.data.service || 0,
+      totalDiscount: session.data.discount || 0
     };
 
     const response = await axios.post(`${backendUrl}/api/v1/expenses/calculateSingleBill`, payload);
     
-    if (response.data && response.data.splits) {
+    if (response.data && response.data.perPersonCharges) {
       let resultText = '💰 Equal Split Result:\n\n';
-      response.data.splits.forEach(split => {
-        resultText += `${split.participant}: Rp ${split.amount.toLocaleString()}\n`;
+      Object.entries(response.data.perPersonCharges).forEach(([participant, amount]) => {
+        resultText += `${participant}: Rp ${amount.toLocaleString()}\n`;
       });
-      resultText += `\nTotal: Rp ${session.data.total.toLocaleString()}`;
+      resultText += `\nTotal: Rp ${response.data.amount.toLocaleString()}`;
       
       bot.sendMessage(chatId, resultText);
       userSessions.delete(chatId);
@@ -280,6 +309,7 @@ async function handleItemizedSplit(chatId, session) {
   session.step = 'item_assignment';
   session.data.assignments = {};
   session.data.currentItemIndex = 0;
+  session.data.currentItemAssignees = []; // Track selected people for current item
   userSessions.set(chatId, session);
 
   await showItemAssignment(chatId, session);
@@ -292,64 +322,121 @@ async function showItemAssignment(chatId, session) {
     return;
   }
 
+  const currentAssignees = session.data.currentItemAssignees || [];
+  
+  // Create participant buttons with checkmarks for selected
+  const participantButtons = session.data.participants.map(p => {
+    const isSelected = currentAssignees.includes(p);
+    return { 
+      text: isSelected ? `✅ ${p}` : `⬜ ${p}`, 
+      callback: `toggle_${p}` 
+    };
+  });
+
+  const actionButtons = [
+    { text: '👥 Select All', callback: 'select_all' },
+    { text: '❌ Clear All', callback: 'clear_all' },
+    { text: '⏭️ Next Item', callback: 'next_item' },
+    { text: '⏹️ Skip Item', callback: 'skip_item' }
+  ];
+
   const keyboard = createKeyboard([
-    ...session.data.participants.map(p => ({ text: p, callback: `assign_${p}` })),
-    { text: '👥 Shared by All', callback: 'assign_shared' },
-    { text: '⏭️ Skip Item', callback: 'assign_skip' }
+    ...participantButtons,
+    ...actionButtons
   ]);
 
-  bot.sendMessage(chatId, 
-    `Who ordered: ${currentItem.name} (Rp ${currentItem.price.toLocaleString()})?`, 
-    keyboard
-  );
+  let messageText = `Who ordered: ${currentItem.name} (Rp ${currentItem.price.toLocaleString()})\n\n`;
+  if (currentAssignees.length > 0) {
+    messageText += `Selected: ${currentAssignees.join(', ')}\n`;
+    messageText += `Each pays: Rp ${(currentItem.price / currentAssignees.length).toLocaleString()}\n\n`;
+  }
+  messageText += `Select participants and press "Next Item" to continue.`;
+
+  bot.sendMessage(chatId, messageText, keyboard);
 }
 
 async function handleItemAssignment(chatId, data, session) {
-  const currentItem = session.data.items[session.data.currentItemIndex];
-  const assignee = data.replace('assign_', '');
+  const currentAssignees = session.data.currentItemAssignees || [];
 
-  if (!session.data.assignments[session.data.currentItemIndex]) {
+  if (data.startsWith('toggle_')) {
+    // Toggle participant selection
+    const participant = data.replace('toggle_', '');
+    const index = currentAssignees.indexOf(participant);
+    
+    if (index === -1) {
+      currentAssignees.push(participant);
+    } else {
+      currentAssignees.splice(index, 1);
+    }
+    
+    session.data.currentItemAssignees = currentAssignees;
+    userSessions.set(chatId, session);
+    
+    // Update the same message with new selection
+    await showItemAssignment(chatId, session);
+    
+  } else if (data === 'select_all') {
+    session.data.currentItemAssignees = [...session.data.participants];
+    userSessions.set(chatId, session);
+    await showItemAssignment(chatId, session);
+    
+  } else if (data === 'clear_all') {
+    session.data.currentItemAssignees = [];
+    userSessions.set(chatId, session);
+    await showItemAssignment(chatId, session);
+    
+  } else if (data === 'next_item') {
+    // Save current assignments and move to next item
+    session.data.assignments[session.data.currentItemIndex] = [...(session.data.currentItemAssignees || [])];
+    session.data.currentItemIndex++;
+    session.data.currentItemAssignees = []; // Reset for next item
+    userSessions.set(chatId, session);
+    await showItemAssignment(chatId, session);
+    
+  } else if (data === 'skip_item') {
+    // Skip current item (assign to nobody)
     session.data.assignments[session.data.currentItemIndex] = [];
+    session.data.currentItemIndex++;
+    session.data.currentItemAssignees = []; // Reset for next item
+    userSessions.set(chatId, session);
+    await showItemAssignment(chatId, session);
   }
-
-  if (assignee === 'shared') {
-    session.data.assignments[session.data.currentItemIndex] = [...session.data.participants];
-  } else if (assignee === 'skip') {
-    session.data.assignments[session.data.currentItemIndex] = [];
-  } else {
-    session.data.assignments[session.data.currentItemIndex] = [assignee];
-  }
-
-  session.data.currentItemIndex++;
-  userSessions.set(chatId, session);
-
-  await showItemAssignment(chatId, session);
 }
 
 async function calculateItemizedSplit(chatId, session) {
   try {
-    const itemsWithAssignments = session.data.items.map((item, index) => ({
-      ...item,
-      assignedTo: session.data.assignments[index] || []
-    }));
+    // Convert bot items to backend format
+    const backendItems = session.data.items.map((item, index) => {
+      const assignedTo = session.data.assignments[index] || [];
+      if (assignedTo.length === 0) return null; // Skip unassigned items
+      
+      return {
+        description: item.name,
+        unitPrice: item.price,
+        quantity: item.quantity || 1,
+        itemDiscount: item.discount || 0,
+        paidBy: assignedTo[0], // First person pays for the item
+        consumers: assignedTo
+      };
+    }).filter(item => item !== null); // Remove null items
 
     const payload = {
-      total: session.data.total,
-      participants: session.data.participants,
-      items: itemsWithAssignments,
-      splitType: 'itemized'
+      items: backendItems,
+      tax: session.data.tax || 0,
+      serviceCharge: session.data.service || 0,
+      totalDiscount: session.data.discount || 0
     };
 
     const response = await axios.post(`${backendUrl}/api/v1/expenses/calculateSingleBill`, payload);
     
-    if (response.data && response.data.splits) {
+    if (response.data && response.data.perPersonCharges) {
       let resultText = '📋 Itemized Split Result:\n\n';
       
-      response.data.splits.forEach(split => {
-        resultText += `${split.participant}: Rp ${split.amount.toLocaleString()}\n`;
+      Object.entries(response.data.perPersonCharges).forEach(([participant, amount]) => {
+        resultText += `${participant}: Rp ${amount.toLocaleString()}\n`;
       });
       
-      resultText += `\nTotal: Rp ${session.data.total.toLocaleString()}`;
+      resultText += `\nTotal: Rp ${response.data.amount.toLocaleString()}`;
       
       bot.sendMessage(chatId, resultText);
       userSessions.delete(chatId);
