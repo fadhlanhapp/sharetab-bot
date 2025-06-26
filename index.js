@@ -134,12 +134,26 @@ async function handlePhotoUpload(chatId, msg, session) {
     if (ocrResponse.data && ocrResponse.data.items) {
       session.data.items = ocrResponse.data.items;
       session.data.total = ocrResponse.data.total || ocrResponse.data.items.reduce((sum, item) => sum + parseFloat(item.price), 0);
+      session.data.subtotal = ocrResponse.data.subtotal || 0;
+      session.data.tax = ocrResponse.data.tax || 0;
+      session.data.service = ocrResponse.data.service || 0;
+      session.data.discount = ocrResponse.data.discount || 0;
       
-      let itemsText = 'Items found:\n';
+      let itemsText = '🧾 Receipt Details:\n\n';
+      itemsText += `🏪 Merchant: ${ocrResponse.data.merchant || 'N/A'}\n`;
+      itemsText += `📅 Date: ${ocrResponse.data.date || 'N/A'}\n\n`;
+      
+      itemsText += '📋 Items:\n';
       ocrResponse.data.items.forEach((item, index) => {
-        itemsText += `${index + 1}. ${item.name} - $${item.price.toFixed(2)}\n`;
+        itemsText += `${index + 1}. ${item.name} - Rp ${item.price.toLocaleString()}\n`;
       });
-      itemsText += `\nTotal: $${session.data.total.toFixed(2)}`;
+      
+      itemsText += '\n💰 Summary:\n';
+      if (session.data.subtotal > 0) itemsText += `Subtotal: Rp ${session.data.subtotal.toLocaleString()}\n`;
+      if (session.data.tax > 0) itemsText += `Tax: Rp ${session.data.tax.toLocaleString()}\n`;
+      if (session.data.service > 0) itemsText += `Service: Rp ${session.data.service.toLocaleString()}\n`;
+      if (session.data.discount > 0) itemsText += `Discount: -Rp ${session.data.discount.toLocaleString()}\n`;
+      itemsText += `\n🎯 Total: Rp ${session.data.total.toLocaleString()}`;
 
       const keyboard = createKeyboard([
         { text: '✅ Confirm', callback: 'confirm' },
@@ -241,9 +255,9 @@ async function handleEqualSplit(chatId, session) {
     if (response.data && response.data.splits) {
       let resultText = '💰 Equal Split Result:\n\n';
       response.data.splits.forEach(split => {
-        resultText += `${split.participant}: $${split.amount.toFixed(2)}\n`;
+        resultText += `${split.participant}: Rp ${split.amount.toLocaleString()}\n`;
       });
-      resultText += `\nTotal: $${session.data.total.toFixed(2)}`;
+      resultText += `\nTotal: Rp ${session.data.total.toLocaleString()}`;
       
       bot.sendMessage(chatId, resultText);
       userSessions.delete(chatId);
@@ -285,7 +299,7 @@ async function showItemAssignment(chatId, session) {
   ]);
 
   bot.sendMessage(chatId, 
-    `Who ordered: ${currentItem.name} ($${currentItem.price.toFixed(2)})?`, 
+    `Who ordered: ${currentItem.name} (Rp ${currentItem.price.toLocaleString()})?`, 
     keyboard
   );
 }
@@ -332,10 +346,10 @@ async function calculateItemizedSplit(chatId, session) {
       let resultText = '📋 Itemized Split Result:\n\n';
       
       response.data.splits.forEach(split => {
-        resultText += `${split.participant}: $${split.amount.toFixed(2)}\n`;
+        resultText += `${split.participant}: Rp ${split.amount.toLocaleString()}\n`;
       });
       
-      resultText += `\nTotal: $${session.data.total.toFixed(2)}`;
+      resultText += `\nTotal: Rp ${session.data.total.toLocaleString()}`;
       
       bot.sendMessage(chatId, resultText);
       userSessions.delete(chatId);
