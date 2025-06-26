@@ -284,10 +284,24 @@ async function handleEqualSplit(chatId, session) {
     
     if (response.data && response.data.perPersonCharges) {
       let resultText = '💰 Equal Split Result:\n\n';
+      
       Object.entries(response.data.perPersonCharges).forEach(([participant, amount]) => {
-        resultText += `${participant}: Rp ${amount.toLocaleString()}\n`;
+        resultText += `👤 **${participant}**\n`;
+        resultText += `   📦 Items: Shared Bill\n`;
+        
+        // Show breakdown if available
+        if (response.data.perPersonBreakdown && response.data.perPersonBreakdown[participant]) {
+          const breakdown = response.data.perPersonBreakdown[participant];
+          resultText += `   💵 Subtotal: Rp ${breakdown.subtotal.toLocaleString()}\n`;
+          if (breakdown.tax > 0) resultText += `   🏛️ Tax: Rp ${breakdown.tax.toLocaleString()}\n`;
+          if (breakdown.serviceCharge > 0) resultText += `   🛎️ Service: Rp ${breakdown.serviceCharge.toLocaleString()}\n`;
+          if (breakdown.discount > 0) resultText += `   🎫 Discount: -Rp ${breakdown.discount.toLocaleString()}\n`;
+        }
+        
+        resultText += `   🎯 **Total: Rp ${amount.toLocaleString()}**\n\n`;
       });
-      resultText += `\nTotal: Rp ${response.data.amount.toLocaleString()}`;
+      
+      resultText += `💸 **Grand Total: Rp ${response.data.amount.toLocaleString()}**`;
       
       bot.sendMessage(chatId, resultText);
       userSessions.delete(chatId);
@@ -435,10 +449,42 @@ async function calculateItemizedSplit(chatId, session) {
       let resultText = '📋 Itemized Split Result:\n\n';
       
       Object.entries(response.data.perPersonCharges).forEach(([participant, amount]) => {
-        resultText += `${participant}: Rp ${amount.toLocaleString()}\n`;
+        resultText += `👤 **${participant}**\n`;
+        
+        // Show items this person ordered
+        const personItems = [];
+        session.data.items.forEach((item, index) => {
+          const assignedTo = session.data.assignments[index] || [];
+          if (assignedTo.includes(participant)) {
+            const quantity = item.quantity && item.quantity > 1 ? ` (${item.quantity}x)` : '';
+            const shareCount = assignedTo.length;
+            const itemCost = item.price / shareCount;
+            personItems.push(`${item.name}${quantity} - Rp ${itemCost.toLocaleString()}`);
+          }
+        });
+        
+        if (personItems.length > 0) {
+          resultText += `   📦 Items:\n`;
+          personItems.forEach(item => {
+            resultText += `      • ${item}\n`;
+          });
+        } else {
+          resultText += `   📦 Items: None\n`;
+        }
+        
+        // Show breakdown if available
+        if (response.data.perPersonBreakdown && response.data.perPersonBreakdown[participant]) {
+          const breakdown = response.data.perPersonBreakdown[participant];
+          resultText += `   💵 Subtotal: Rp ${breakdown.subtotal.toLocaleString()}\n`;
+          if (breakdown.tax > 0) resultText += `   🏛️ Tax: Rp ${breakdown.tax.toLocaleString()}\n`;
+          if (breakdown.serviceCharge > 0) resultText += `   🛎️ Service: Rp ${breakdown.serviceCharge.toLocaleString()}\n`;
+          if (breakdown.discount > 0) resultText += `   🎫 Discount: -Rp ${breakdown.discount.toLocaleString()}\n`;
+        }
+        
+        resultText += `   🎯 **Total: Rp ${amount.toLocaleString()}**\n\n`;
       });
       
-      resultText += `\nTotal: Rp ${response.data.amount.toLocaleString()}`;
+      resultText += `💸 **Grand Total: Rp ${response.data.amount.toLocaleString()}**`;
       
       bot.sendMessage(chatId, resultText);
       userSessions.delete(chatId);
