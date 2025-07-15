@@ -31,7 +31,8 @@ bot.onText(/\/split/, async (msg) => {
 
   const keyboard = createKeyboard([
     { text: '✍️ Manual Entry', callback: 'manual' },
-    { text: '📷 Upload Receipt Photo', callback: 'photo' }
+    { text: '📷 Upload Receipt Photo', callback: 'photo' },
+    { text: '🔙 Start Over', callback: 'start_over' }
   ]);
 
   bot.sendMessage(chatId, 'How would you like to enter the bill?', keyboard);
@@ -74,7 +75,7 @@ bot.on('callback_query', async (callbackQuery) => {
       if (data === 'confirm') {
         await askForParticipants(chatId, session);
       } else if (data === 'edit') {
-        bot.sendMessage(chatId, 'Please manually enter the items in format:\nItem1 - Rp 10000\nItem2 - Rp 15500\n...');
+        bot.sendMessage(chatId, 'Please manually enter the items in format:\nItem1 - Rp 10000\nItem2 - Rp 15500\n...\n\nOr type "back" to go back.');
         session.step = 'manual_items';
         userSessions.set(chatId, session);
       }
@@ -83,6 +84,8 @@ bot.on('callback_query', async (callbackQuery) => {
     default:
       if (data.startsWith('toggle_') || ['select_all', 'clear_all', 'next_item', 'skip_item'].includes(data)) {
         await handleItemAssignment(chatId, data, session);
+      } else if (data.startsWith('back_') || data === 'start_over') {
+        await handleBackNavigation(chatId, data, session);
       }
   }
 });
@@ -164,7 +167,8 @@ async function handlePhotoUpload(chatId, msg, session) {
 
       const keyboard = createKeyboard([
         { text: '✅ Confirm', callback: 'confirm' },
-        { text: '✏️ Edit', callback: 'edit' }
+        { text: '✏️ Edit', callback: 'edit' },
+        { text: '🔙 Back', callback: 'back_to_input' }
       ]);
 
       session.step = 'confirm_items';
@@ -187,11 +191,17 @@ async function handlePhotoUpload(chatId, msg, session) {
 }
 
 async function handleTextInput(chatId, text, session) {
+  // Check for back command in any text input
+  if (text.toLowerCase() === 'back' || text === '🔙') {
+    await handleBackFromTextInput(chatId, session);
+    return;
+  }
+
   switch (session.step) {
     case 'manual_amount':
       const amount = parseFloat(text);
       if (isNaN(amount) || amount <= 0) {
-        bot.sendMessage(chatId, 'Please enter a valid amount (e.g., 50000):');
+        bot.sendMessage(chatId, 'Please enter a valid amount (e.g., 50000) or type "back":');
         return;
       }
       session.data.total = amount;
@@ -205,7 +215,7 @@ async function handleTextInput(chatId, text, session) {
     case 'participants':
       const participants = text.split(',').map(p => p.trim()).filter(p => p);
       if (participants.length < 2) {
-        bot.sendMessage(chatId, 'Please enter at least 2 participants, separated by commas:');
+        bot.sendMessage(chatId, 'Please enter at least 2 participants, separated by commas, or type "back":');
         return;
       }
       session.data.participants = participants;
@@ -228,7 +238,7 @@ async function handleTextInput(chatId, text, session) {
         }).filter(item => item);
 
         if (items.length === 0) {
-          bot.sendMessage(chatId, 'Please enter items in correct format:\nItem1 - Rp 10000\nItem2 - Rp 15500');
+          bot.sendMessage(chatId, 'Please enter items in correct format:\nItem1 - Rp 10000\nItem2 - Rp 15500\n\nOr type "back" to go back.');
           return;
         }
 
@@ -249,13 +259,14 @@ async function handleTextInput(chatId, text, session) {
 async function askForParticipants(chatId, session) {
   session.step = 'participants';
   userSessions.set(chatId, session);
-  bot.sendMessage(chatId, 'Please enter participant names separated by commas (e.g., John, Jane, Bob):');
+  bot.sendMessage(chatId, 'Please enter participant names separated by commas (e.g., John, Jane, Bob):\n\nOr type "back" to go back.');
 }
 
 async function askForSplitMethod(chatId, session) {
   const keyboard = createKeyboard([
     { text: '🟰 Equal Split', callback: 'equal' },
-    { text: '📋 By Items', callback: 'itemized' }
+    { text: '📋 By Items', callback: 'itemized' },
+    { text: '🔙 Back', callback: 'back_to_participants' }
   ]);
 
   session.step = 'split_method';
@@ -303,7 +314,14 @@ async function handleEqualSplit(chatId, session) {
       
       resultText += `💸 *Grand Total: Rp ${response.data.amount.toLocaleString()}*`;
       
-      bot.sendMessage(chatId, resultText, { parse_mode: 'Markdown' });
+      await bot.sendMessage(chatId, resultText, { parse_mode: 'Markdown' });
+      
+      // Add option to start over
+      const finalKeyboard = createKeyboard([
+        { text: '🔄 Calculate Again', callback: 'start_over' }
+      ]);
+      
+      bot.sendMessage(chatId, '✅ Calculation complete! Start a new calculation if needed:', finalKeyboard);
       userSessions.delete(chatId);
     } else {
       throw new Error('Invalid response from backend');
@@ -352,7 +370,8 @@ async function showItemAssignment(chatId, session) {
     { text: '👥 Select All', callback: 'select_all' },
     { text: '❌ Clear All', callback: 'clear_all' },
     { text: '⏭️ Next Item', callback: 'next_item' },
-    { text: '⏹️ Skip Item', callback: 'skip_item' }
+    { text: '⏹️ Skip Item', callback: 'skip_item' },
+    { text: '🔙 Back', callback: 'back_to_split_method' }
   ];
 
   const keyboard = createKeyboard([
@@ -486,7 +505,14 @@ async function calculateItemizedSplit(chatId, session) {
       
       resultText += `💸 *Grand Total: Rp ${response.data.amount.toLocaleString()}*`;
       
-      bot.sendMessage(chatId, resultText, { parse_mode: 'Markdown' });
+      await bot.sendMessage(chatId, resultText, { parse_mode: 'Markdown' });
+      
+      // Add option to start over
+      const finalKeyboard = createKeyboard([
+        { text: '🔄 Calculate Again', callback: 'start_over' }
+      ]);
+      
+      bot.sendMessage(chatId, '✅ Calculation complete! Start a new calculation if needed:', finalKeyboard);
       userSessions.delete(chatId);
     } else {
       throw new Error('Invalid response from backend');
@@ -495,6 +521,108 @@ async function calculateItemizedSplit(chatId, session) {
     console.error('Calculate Error:', error);
     bot.sendMessage(chatId, 'Error calculating itemized split. Please try again.');
     userSessions.delete(chatId);
+  }
+}
+
+async function handleBackNavigation(chatId, action, session) {
+  switch (action) {
+    case 'start_over':
+      userSessions.delete(chatId);
+      bot.sendMessage(chatId, 'Starting over... Use /split to begin again.');
+      break;
+
+    case 'back_to_input':
+      session.step = 'input_method';
+      session.data = {};
+      userSessions.set(chatId, session);
+      
+      const inputKeyboard = createKeyboard([
+        { text: '✍️ Manual Entry', callback: 'manual' },
+        { text: '📷 Upload Receipt Photo', callback: 'photo' },
+        { text: '🔙 Start Over', callback: 'start_over' }
+      ]);
+      bot.sendMessage(chatId, 'How would you like to enter the bill?', inputKeyboard);
+      break;
+
+    case 'back_to_participants':
+      session.step = 'participants';
+      userSessions.set(chatId, session);
+      bot.sendMessage(chatId, 'Please enter participant names separated by commas (e.g., John, Jane, Bob), or type "back":');
+      break;
+
+    case 'back_to_split_method':
+      await askForSplitMethod(chatId, session);
+      break;
+  }
+}
+
+async function handleBackFromTextInput(chatId, session) {
+  switch (session.step) {
+    case 'manual_amount':
+      session.step = 'input_method';
+      session.data = {};
+      userSessions.set(chatId, session);
+      
+      const inputKeyboard = createKeyboard([
+        { text: '✍️ Manual Entry', callback: 'manual' },
+        { text: '📷 Upload Receipt Photo', callback: 'photo' },
+        { text: '🔙 Start Over', callback: 'start_over' }
+      ]);
+      bot.sendMessage(chatId, 'How would you like to enter the bill?', inputKeyboard);
+      break;
+
+    case 'participants':
+      // Go back to amount entry for manual, or to input method for photo
+      if (session.data.items && session.data.items.length > 0) {
+        // Came from photo upload, go back to confirm items
+        session.step = 'confirm_items';
+        userSessions.set(chatId, session);
+        
+        let itemsText = '🧾 Receipt Details:\n\n';
+        itemsText += `🏪 Merchant: ${session.data.merchant || 'N/A'}\n`;
+        itemsText += `📅 Date: ${session.data.date || 'N/A'}\n\n`;
+        
+        itemsText += '📋 Items:\n';
+        session.data.items.forEach((item, index) => {
+          const quantity = item.quantity && item.quantity > 1 ? ` (${item.quantity}x)` : '';
+          itemsText += `${index + 1}. ${item.name}${quantity} - Rp ${item.price.toLocaleString()}\n`;
+        });
+        
+        itemsText += '\n💰 Summary:\n';
+        if (session.data.subtotal > 0) itemsText += `Subtotal: Rp ${session.data.subtotal.toLocaleString()}\n`;
+        if (session.data.tax > 0) itemsText += `Tax: Rp ${session.data.tax.toLocaleString()}\n`;
+        if (session.data.service > 0) itemsText += `Service: Rp ${session.data.service.toLocaleString()}\n`;
+        if (session.data.discount > 0) itemsText += `Discount: -Rp ${session.data.discount.toLocaleString()}\n`;
+        itemsText += `\n🎯 Total: Rp ${session.data.total.toLocaleString()}`;
+
+        const keyboard = createKeyboard([
+          { text: '✅ Confirm', callback: 'confirm' },
+          { text: '✏️ Edit', callback: 'edit' },
+          { text: '🔙 Back', callback: 'back_to_input' }
+        ]);
+        
+        bot.sendMessage(chatId, itemsText, keyboard);
+      } else {
+        // Came from manual amount, go back to amount entry
+        session.step = 'manual_amount';
+        userSessions.set(chatId, session);
+        bot.sendMessage(chatId, 'Please enter the total amount (e.g., 50000) or type "back":');
+      }
+      break;
+
+    case 'manual_items':
+      // Go back to confirm items
+      session.step = 'confirm_items';
+      userSessions.set(chatId, session);
+      
+      const confirmKeyboard = createKeyboard([
+        { text: '✅ Confirm', callback: 'confirm' },
+        { text: '✏️ Edit', callback: 'edit' },
+        { text: '🔙 Back', callback: 'back_to_input' }
+      ]);
+      
+      bot.sendMessage(chatId, 'Going back to item confirmation...', confirmKeyboard);
+      break;
   }
 }
 
